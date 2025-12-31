@@ -1,12 +1,12 @@
 blueprint:
   name: Sonoff Ultimate TX automation Blueprint
   description: >-
-    Sonoff Ultimate TX blueprint for "two fingers double click" gesture and "two fingers + slide action"
-    Blueprint use Sonoff LAN HACS integration - https://github.com/AlexxIT/SonoffLAN
-    Need to manualy crete text helper for last state
+    Sonoff Ultimate TX blueprint for "two fingers double click" gesture and "two fingers + slide action".
+    Uses Sonoff LAN HACS integration - https://github.com/AlexxIT/SonoffLAN.
+    Requires a manually created text helper for last event state.
   domain: automation
   homeassistant:
-    min_version: "2024.10.0"  # Wymagane dla trigger IDs (działa w 2025 r.)
+    min_version: "2024.10.0"
   author: Shadala (fork)
   source_url: https://github.com/tavarez992/HomeassistantBlueprints/blob/main/blueprints/automation/SonoffUltimateTX.yaml
   input:
@@ -30,8 +30,7 @@ blueprint:
                 - sensor
         helper_last_controller_event:
           name: (Required) Helper - Last Event
-          description: Input Text used to store the last event.
-            You will need to manually create a text input entity for this.
+          description: Input Text used to store the last event. You will need to manually create a text input entity for this.
           selector:
             entity:
               domain:
@@ -93,17 +92,14 @@ max_exceeded: silent
 triggers:
   - id: ambient_change
     trigger: state
-    entity_id:
-      - !input controller_ambient
+    entity_id: !input controller_ambient
   - id: slide_left
     trigger: state
-    entity_id:
-      - !input controller_entity
+    entity_id: !input controller_entity
     to: slide_1
   - id: slide_right
     trigger: state
-    entity_id:
-      - !input controller_entity
+    entity_id: !input controller_entity
     to: slide_2
 
 conditions:
@@ -136,8 +132,7 @@ action:
       - "{{ time_to_do_double }}"
     then:
       - choose:
-          - conditions:
-              - "{{ trigger_action == 'slide_1' }}"
+          - conditions: "{{ trigger_action == 'slide_1' }}"
             sequence:
               - action: input_text.set_value
                 data:
@@ -146,8 +141,7 @@ action:
                   entity_id: !input helper_last_controller_event
               - choose: []
                 sequence: !input action_double_actions_slide_1
-          - conditions:
-              - "{{ trigger_action == 'slide_2' }}"
+          - conditions: "{{ trigger_action == 'slide_2' }}"
             sequence:
               - action: input_text.set_value
                 data:
@@ -156,8 +150,7 @@ action:
                   entity_id: !input helper_last_controller_event
               - choose: []
                 sequence: !input action_double_actions_slide_2
-          - conditions:
-              - "{{ trigger_action in ['on','off'] }}"
+          - conditions: "{{ trigger_action in ['on','off'] }}"
             sequence:
               - action: input_text.set_value
                 data:
@@ -173,8 +166,7 @@ action:
           - delay:
               milliseconds: "{{ helper_double_press_delay }}"
       - choose:
-          - conditions:
-              - "{{ trigger_action == 'slide_1' }}"
+          - conditions: "{{ trigger_action == 'slide_1' }}"
             sequence:
               - action: input_text.set_value
                 data:
@@ -183,8 +175,7 @@ action:
                   entity_id: !input helper_last_controller_event
               - choose: []
                 sequence: !input action_single_actions_slide_1
-          - conditions:
-              - "{{ trigger_action == 'slide_2' }}"
+          - conditions: "{{ trigger_action == 'slide_2' }}"
             sequence:
               - action: input_text.set_value
                 data:
