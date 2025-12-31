@@ -5,8 +5,9 @@ blueprint:
     Blueprint use Sonoff LAN HACS integration - https://github.com/AlexxIT/SonoffLAN
     Need to manualy crete text helper for last state
   domain: automation
-  min_version: 2024.10  # Wymagane dla trigger IDs – wspiera multiple triggers bez błędu 'dict object'
-  author: Shadala
+  homeassistant:
+    min_version: "2024.10.0"  # Wymagane dla trigger IDs (działa w 2025 r.)
+  author: Shadala (fork)
   source_url: https://github.com/tavarez992/HomeassistantBlueprints/blob/main/blueprints/automation/SonoffUltimateTX.yaml
   input:
     entities_section:
@@ -90,18 +91,15 @@ mode: restart
 max_exceeded: silent
 
 triggers:
-  # Trigger 1: Zmiany na light (on/off) – ale z ID, żeby HA traktował jako pojedynczy
   - id: ambient_change
     trigger: state
     entity_id:
       - !input controller_ambient
-  # Trigger 2: Slide left
   - id: slide_left
     trigger: state
     entity_id:
       - !input controller_entity
     to: slide_1
-  # Trigger 3: Slide right
   - id: slide_right
     trigger: state
     entity_id:
@@ -111,131 +109,87 @@ triggers:
 conditions:
   - condition: template
     value_template: >-
-      {%- set trigger_action_if -%}
-      {{ trigger.to_state.state }}
-      {%- endset -%}
-      {{ trigger_action_if in ['on','off','slide_1','slide_2'] and
+      {{ trigger.to_state.state in ['on','off','slide_1','slide_2'] and
       trigger.to_state.context.parent_id is none }}
-    enabled: true
 
 action:
   - variables:
       helper_last_controller_event: !input helper_last_controller_event
       helper_double_press_delay: !input helper_double_press_delay
-      trigger_action: '{{ trigger.to_state.state }}'
+      trigger_action: "{{ trigger.to_state.state }}"
       trigger_delta: >-
-        {{ (as_timestamp(now()) - ((states(helper_last_controller_event) |
-        from_json).t if helper_last_controller_event is not none and
-        (states(helper_last_controller_event) |
-        regex_match("^\{((\"a\":\".*\"|\"t\":\d+\.\d+)(,)?){2}\}$")) else
-        as_timestamp("1970-01-01 00:00:00"))) * 1000 }}
+        {{ (as_timestamp(now()) - ((states(helper_last_controller_event) | from_json).t
+        if states(helper_last_controller_event) is string and states(helper_last_controller_event) | regex_match("^\{((\"a\":\".*\"|\"t\":\d+\.\d+)(,)?){2}\}$")
+        else as_timestamp("1970-01-01 00:00:00"))) * 1000 }}
       last_controller_event: >-
-        {{ (states(helper_last_controller_event) | from_json).a if
-        helper_last_controller_event is not none and
-        (states(helper_last_controller_event) |
-        regex_match("^\{((\"a\":\".*\"|\"t\":\d+\.\d+)(,)?){2}\}$")) else "" }}
+        {{ (states(helper_last_controller_event) | from_json).a
+        if states(helper_last_controller_event) is string and states(helper_last_controller_event) | regex_match("^\{((\"a\":\".*\"|\"t\":\d+\.\d+)(,)?){2}\}$")
+        else "" }}
       time_to_do_double: >-
-        {{trigger_delta | int <= helper_double_press_delay | int and
-        last_controller_event in ['on','off']}}
+        {{ trigger_delta | int <= helper_double_press_delay | int and last_controller_event in ['on','off'] }}
   - action: input_text.set_value
-    metadata: {}
     data:
-      value: "{{ {'a':trigger_action,'t':as_timestamp(now())} | to_json }}"
+      value: "{{ {'a': trigger_action, 't': as_timestamp(now())} | to_json }}"
     target:
       entity_id: !input helper_last_controller_event
   - if:
-      - condition: template
-        value_template: "{{time_to_do_double}}"
+      - "{{ time_to_do_double }}"
     then:
-      - alias: Double events
-        choose:
-          - conditions:
-              - condition: template
-                value_template: "{{trigger_action == 'slide_1'}}"
-            sequence:
-              - sequence:
-                  - action: input_text.set_value
-                    metadata: {}
-                    data:
-                      value: >-
-                        {{ {'a':'do_second_left','t':as_timestamp(now())} | to_json }}
-                    target:
-                      entity_id: !input helper_last_controller_event
-                  - choose:
-                      - conditions: []
-                        sequence: !input action_double_actions_slide_1
-            alias: Double slide left
-          - conditions:
-              - condition: template
-                value_template: "{{trigger_action == 'slide_2'}}"
-            sequence:
-              - sequence:
-                  - action: input_text.set_value
-                    metadata: {}
-                    data:
-                      value: >-
-                        {{ {'a':'do_second_right','t':as_timestamp(now())} | to_json }}
-                    target:
-                      entity_id: !input helper_last_controller_event
-                  - choose:
-                      - conditions: []
-                        sequence: !input action_double_actions_slide_2
-            alias: Double slide right
-          - conditions:
-              - condition: template
-                value_template: "{{trigger_action in ['on', 'off']}}"
-            sequence:
-              - sequence:
-                  - action: input_text.set_value
-                    metadata: {}
-                    data:
-                      value: >-
-                        {{ {'a':'double_ambient_click','t':as_timestamp(now())}
-                        | to_json }}
-                    target:
-                      entity_id: !input helper_last_controller_event
-                  - choose:
-                      - conditions: []
-                        sequence: !input action_double_actions_double_ambient_click
-            alias: Double ambient
-    else:
-      - if:
-          - condition: template
-            value_template: "{{ trigger_action in ['on','off'] }}"
-        then:
-          - delay:
-              hours: 0
-              minutes: 0
-              seconds: 0
-              milliseconds: "{{helper_double_press_delay}}"
       - choose:
           - conditions:
-              - condition: template
-                value_template: "{{trigger_action == 'slide_1'}}"
+              - "{{ trigger_action == 'slide_1' }}"
             sequence:
               - action: input_text.set_value
-                metadata: {}
                 data:
-                  value: >-
-                    {{ {'a':'do_single_left','t':as_timestamp(now())} | to_json }}
+                  value: "{{ {'a':'do_second_left','t':as_timestamp(now())} | to_json }}"
                 target:
                   entity_id: !input helper_last_controller_event
-              - choose:
-                  - conditions: []
-                    sequence: !input action_single_actions_slide_1
-            alias: Single slide left
+              - choose: []
+                sequence: !input action_double_actions_slide_1
           - conditions:
-              - condition: template
-                value_template: "{{trigger_action == 'slide_2'}}"
+              - "{{ trigger_action == 'slide_2' }}"
             sequence:
               - action: input_text.set_value
-                metadata: {}
                 data:
-                  value: >-
-                    {{ {'a':'do_single_right','t':as_timestamp(now())} | to_json }}
+                  value: "{{ {'a':'do_second_right','t':as_timestamp(now())} | to_json }}"
                 target:
                   entity_id: !input helper_last_controller_event
-              - choose:
-                  - conditions: []
-                    sequence: !input action_single_actions_slide_2
-            alias: Single slide right
+              - choose: []
+                sequence: !input action_double_actions_slide_2
+          - conditions:
+              - "{{ trigger_action in ['on','off'] }}"
+            sequence:
+              - action: input_text.set_value
+                data:
+                  value: "{{ {'a':'double_ambient_click','t':as_timestamp(now())} | to_json }}"
+                target:
+                  entity_id: !input helper_last_controller_event
+              - choose: []
+                sequence: !input action_double_actions_double_ambient_click
+    else:
+      - if:
+          - "{{ trigger_action in ['on','off'] }}"
+        then:
+          - delay:
+              milliseconds: "{{ helper_double_press_delay }}"
+      - choose:
+          - conditions:
+              - "{{ trigger_action == 'slide_1' }}"
+            sequence:
+              - action: input_text.set_value
+                data:
+                  value: "{{ {'a':'do_single_left','t':as_timestamp(now())} | to_json }}"
+                target:
+                  entity_id: !input helper_last_controller_event
+              - choose: []
+                sequence: !input action_single_actions_slide_1
+          - conditions:
+              - "{{ trigger_action == 'slide_2' }}"
+            sequence:
+              - action: input_text.set_value
+                data:
+                  value: "{{ {'a':'do_single_right','t':as_timestamp(now())} | to_json }}"
+                target:
+                  entity_id: !input helper_last_controller_event
+              - choose: []
+                sequence: !input action_single_actions_slide_2
